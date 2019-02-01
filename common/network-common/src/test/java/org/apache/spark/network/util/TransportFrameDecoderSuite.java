@@ -17,14 +17,22 @@
 
 package org.apache.spark.network.util;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.base.Joiner;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.AdaptiveRecvByteBufAllocator;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.RecvByteBufAllocator;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.AfterClass;
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -74,6 +82,93 @@ public class TransportFrameDecoderSuite {
       release(data1);
       release(data2);
     }
+  }
+
+  @Test
+  public void getJVMOSInfo() {
+    String vmName = System.getProperty("java.vm.name");
+    String runtimeVersion = System.getProperty("java.runtime.version");
+    String osName = System.getProperty("os.name");
+    String osVersion = System.getProperty("os.version");
+    System.out.println(String.format("%s %s on %s %s", vmName, runtimeVersion, osName, osVersion));
+  }
+
+  private CompositeByteBuf createCompositeBuf(ByteBufAllocator alloc, int numComponents, int size, int writtenBytes) {
+    CompositeByteBuf compositeByteBuf = alloc.compositeBuffer(Integer.MAX_VALUE);
+    for (int i =0; i< numComponents; i++) {
+      ByteBuf buf = alloc.ioBuffer(size);
+      buf.writerIndex(writtenBytes);
+      compositeByteBuf.addComponent(buf).writerIndex(compositeByteBuf.writerIndex() + buf.readableBytes());
+    }
+    return compositeByteBuf;
+  }
+
+  private void testConsolidateWithLoop(String testName, ByteBufAllocator alloc, int numComponents, int size, int util, int loopCount) {
+    long totalTime = 0L;
+    int writtenBytes = (int)((double)size * util / 100);
+    for (int i = 0; i < loopCount; i++) {
+      CompositeByteBuf buf = createCompositeBuf(alloc, numComponents, size, writtenBytes);
+      long start = System.currentTimeMillis();
+      buf.consolidate();
+      long cost = System.currentTimeMillis() - start;
+      totalTime += cost;
+      buf.release();
+    }
+    System.out.println("[" + testName + "]");
+    System.out.println("Allocating " + writtenBytes + " bytes");
+    System.out.println("Time cost with " + loopCount + " loop for consolidating: " + totalTime + " millis");
+    System.out.println();
+  }
+
+  @Test
+  public void benchmarkForConsolidation() throws Exception {
+    PooledByteBufAllocator alloc = new PooledByteBufAllocator(true);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 50% used for 1 loop",
+        alloc, 100, 1024 * 1024 * 10, 50, 1);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 100% used for 1 loop",
+        alloc, 100, 1024 * 1024 * 10, 100, 1);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 50% used for 10 loop",
+        alloc, 100, 1024 * 1024 * 10, 50, 10);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 100% used for 10 loop",
+        alloc, 100, 1024 * 1024 * 10, 100, 10);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 50% used for 50 loop",
+        alloc, 100, 1024 * 1024 * 10, 50, 50);
+
+    testConsolidateWithLoop("test consolidate 100 buffers each with 10m, 100% used for 50 loop",
+        alloc, 100, 1024 * 1024 * 10, 100, 50);
+
+    /////////
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 50% used for 1 loop",
+        alloc, 20, 1024 * 1024 * 50, 50, 1);
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 100% used for 1 loop",
+        alloc, 20, 1024 * 1024 * 50, 100, 1);
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 50% used for 10 loop",
+        alloc, 20, 1024 * 1024 * 50, 50, 10);
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 100% used for 10 loop",
+        alloc, 20, 1024 * 1024 * 50, 100, 10);
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 50% used for 50 loop",
+        alloc, 20, 1024 * 1024 * 50, 50, 50);
+    testConsolidateWithLoop("test consolidate 20 buffers each with 50m, 100% used for 50 loop",
+        alloc, 20, 1024 * 1024 * 50, 100, 50);
+
+    //////
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 50% used for 1 loop",
+        alloc, 10, 1024 * 1024 * 100, 50, 1);
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 100% used for 1 loop",
+        alloc, 10, 1024 * 1024 * 100, 100, 1);
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 50% used for 10 loop",
+        alloc, 10, 1024 * 1024 * 100, 50, 10);
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 100% used for 10 loop",
+        alloc, 10, 1024 * 1024 * 100, 100, 10);
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 50% used for 50 loop",
+        alloc, 10, 1024 * 1024 * 100, 50, 50);
+    testConsolidateWithLoop("test consolidate 10 buffers each with 100m, 100% used for 50 loop",
+        alloc, 10, 1024 * 1024 * 100, 100, 50);
   }
 
   @Test
