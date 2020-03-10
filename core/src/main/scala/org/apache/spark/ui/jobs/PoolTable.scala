@@ -21,9 +21,10 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import javax.servlet.http.HttpServletRequest
 
+import scala.collection.JavaConverters._
 import scala.xml.Node
 
-import org.apache.spark.scheduler.Schedulable
+import org.apache.spark.scheduler.{Pool, Schedulable}
 import org.apache.spark.status.PoolData
 import org.apache.spark.ui.UIUtils
 
@@ -35,10 +36,12 @@ private[ui] class PoolTable(pools: Map[Schedulable, PoolData], parent: StagesTab
       <thead>
         <th>Pool Name</th>
         <th>Minimum Share</th>
+        <th>Maximum Share</th>
         <th>Pool Weight</th>
         <th>Active Stages</th>
         <th>Running Tasks</th>
         <th>SchedulingMode</th>
+        <th>Binded Executors</th>
       </thead>
       <tbody>
         {pools.map { case (s, p) => poolRow(request, s, p) }}
@@ -51,15 +54,19 @@ private[ui] class PoolTable(pools: Map[Schedulable, PoolData], parent: StagesTab
     val href = "%s/stages/pool?poolname=%s"
       .format(UIUtils.prependBaseUri(request, parent.basePath),
         URLEncoder.encode(p.name, StandardCharsets.UTF_8.name()))
+    val pool = s.asInstanceOf[Pool]
+    val numBindedExecutors = pool.boundExecutors.size()
     <tr>
       <td>
         <a href={href}>{p.name}</a>
       </td>
       <td>{s.minShare}</td>
+      <td>{s.maxShare}</td>
       <td>{s.weight}</td>
       <td>{activeStages}</td>
       <td>{s.runningTasks}</td>
       <td>{s.schedulingMode}</td>
+      <td>{numBindedExecutors}</td>
     </tr>
   }
 }

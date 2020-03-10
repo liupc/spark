@@ -105,6 +105,7 @@ private[spark] class TaskSetManager(
 
   val weight = 1
   val minShare = 0
+  val maxShare = Int.MaxValue
   var priority = taskSet.priority
   var stageId = taskSet.stageId
   val name = "TaskSet_" + taskSet.id
@@ -916,7 +917,7 @@ private[spark] class TaskSetManager(
   }
 
   def canScheduleOn(executorId: String): Boolean = {
-    parent.bindedExecutors.contains(executorId)
+    parent.boundExecutors.contains(executorId)
   }
 
   override def getSchedulableByName(name: String): Schedulable = {
