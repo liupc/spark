@@ -41,7 +41,7 @@ private[ui] class PoolTable(pools: Map[Schedulable, PoolData], parent: StagesTab
         <th>Active Stages</th>
         <th>Running Tasks</th>
         <th>SchedulingMode</th>
-        <th>Binded Executors</th>
+        <th>Bound Executors</th>
       </thead>
       <tbody>
         {pools.map { case (s, p) => poolRow(request, s, p) }}
@@ -55,7 +55,7 @@ private[ui] class PoolTable(pools: Map[Schedulable, PoolData], parent: StagesTab
       .format(UIUtils.prependBaseUri(request, parent.basePath),
         URLEncoder.encode(p.name, StandardCharsets.UTF_8.name()))
     val pool = s.asInstanceOf[Pool]
-    val numBindedExecutors = pool.boundExecutors.size()
+    val numBoundExecutors = pool.boundExecutors.size()
     <tr>
       <td>
         <a href={href}>{p.name}</a>
@@ -66,7 +66,7 @@ private[ui] class PoolTable(pools: Map[Schedulable, PoolData], parent: StagesTab
       <td>{activeStages}</td>
       <td>{s.runningTasks}</td>
       <td>{s.schedulingMode}</td>
-      <td>{numBindedExecutors}</td>
+      <td>{numBoundExecutors}</td>
     </tr>
   }
 }
